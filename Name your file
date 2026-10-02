@@ -1,1 +1,182 @@
+bot pay 
+import os
 
+import json
+
+import time
+
+import urllib.request
+
+import urllib.parse
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+ADMIN_ID = os.getenv("ADMIN_ID", "")
+
+ARQUIVO = "inscritos.json"
+
+if not TOKEN:
+
+    raise RuntimeError("Configure TELEGRAM_BOT_TOKEN nas variáveis do serviço.")
+
+BASE = f"https://api.telegram.org/bot{TOKEN}/"
+
+def chamar(metodo, dados=None):
+
+    dados = dados or {}
+
+    req = urllib.request.Request(
+
+        BASE + metodo,
+
+        data=urllib.parse.urlencode(dados).encode()
+
+    )
+
+    with urllib.request.urlopen(req, timeout=40) as resposta:
+
+        return json.loads(resposta.read().decode())
+
+def carregar_inscritos():
+
+    try:
+
+        with open(ARQUIVO, "r", encoding="utf-8") as f:
+
+            return set(json.load(f))
+
+    except (FileNotFoundError, json.JSONDecodeError):
+
+        return set()
+
+inscritos = carregar_inscritos()
+
+def salvar_inscritos():
+
+    with open(ARQUIVO, "w", encoding="utf-8") as f:
+
+        json.dump(list(inscritos), f)
+
+def enviar(chat_id, texto):
+
+    try:
+
+        chamar("sendMessage", {"chat_id": chat_id, "text": texto})
+
+    except Exception:
+
+        pass
+
+def processar(mensagem):
+
+    chat_id = mensagem["chat"]["id"]
+
+    usuario_id = str(mensagem["from"]["id"])
+
+    texto = mensagem.get("text", "").strip()
+
+    if texto.startswith("/start"):
+
+        inscritos.add(chat_id)
+
+        salvar_inscritos()
+
+        enviar(chat_id,
+
+            "🛍️ Bem-vindo ao Achadinho da Shopee!\n\n"
+
+            "Aqui você poderá receber ofertas e achadinhos.\n"
+
+            "Para ver os comandos, digite /ajuda."
+
+        )
+
+    elif texto.startswith("/ajuda"):
+
+        enviar(chat_id,
+
+            "🛍️ Achadinho da Shopee\n\n"
+
+            "/start - Entrar na lista de ofertas\n"
+
+            "/id - Ver seu ID do Telegram\n"
+
+            "/ajuda - Ver os comandos\n\n"
+
+            "Para receber ofertas, mantenha o bot iniciado."
+
+        )
+
+    elif texto.startswith("/id"):
+
+        enviar(chat_id, f"Seu ID é: {usuario_id}")
+
+    elif texto.startswith("/oferta "):
+
+        if not ADMIN_ID or usuario_id != ADMIN_ID:
+
+            enviar(chat_id, "Comando disponível somente para a administradora.")
+
+            return
+
+        oferta = texto[len("/oferta "):].strip()
+
+        if not oferta:
+
+            enviar(chat_id, "Escreva o texto da oferta depois de /oferta.")
+
+            return
+
+        enviados = 0
+
+        for destino in list(inscritos):
+
+            try:
+
+                chamar("sendMessage", {
+
+                    "chat_id": destino,
+
+                    "text": oferta
+
+                })
+
+                enviados += 1
+
+            except Exception:
+
+                pass
+
+        enviar(chat_id, f"Oferta enviada para {enviados} inscritos.")
+
+def iniciar():
+
+    offset = None
+
+    print("Bot Achadinho da Shopee iniciado.")
+
+    while True:
+
+        try:
+
+            dados = {"timeout": 30}
+
+            if offset is not None:
+
+                dados["offset"] = offset
+
+            resultado = chamar("getUpdates", dados)
+
+            for atualizacao in resultado.get("result", []):
+
+                offset = atualizacao["update_id"] + 1
+
+                mensagem = atualizacao.get("message")
+
+                if mensagem:
+
+                    processar(mensagem)
+
+        except Exception as erro:
+
+            print("Erro de conexão:", erro)
