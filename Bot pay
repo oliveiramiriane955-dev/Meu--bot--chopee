@@ -1,1 +1,31 @@
+import os
+import telebot
 
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+bot = telebot.TeleBot(TOKEN)
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.reply_to(
+        message,
+        "🛍️ Olá! Envie seu link da Shopee e eu vou processá-lo."
+    )
+
+@bot.message_handler(func=lambda message: True)
+def receber_link(message):
+    texto = message.text.strip()
+
+    if "shopee" in texto.lower():
+        bot.reply_to(
+            message,
+            "✅ Link da Shopee recebido!\n\n"
+            "Agora vamos configurar a conversão para seu link de afiliada."
+        )
+    else:
+        bot.reply_to(
+            message,
+            "📎 Envie um link da Shopee."
+        )
+
+bot.infinity_polling()
