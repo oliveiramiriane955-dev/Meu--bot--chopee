@@ -1,0 +1,14 @@
+
+name: Iniciar bot Shopee
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  iniciar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Manter ativo
+        run: echo "Bot Shopee iniciado"
